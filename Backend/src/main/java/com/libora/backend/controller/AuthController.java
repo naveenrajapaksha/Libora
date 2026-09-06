@@ -1,5 +1,7 @@
 package com.libora.backend.controller;
 
+import com.libora.backend.dto.LoginRequest;
+import com.libora.backend.dto.LoginResponse;
 import com.libora.backend.dto.RegisterRequest;
 import com.libora.backend.dto.RegisterResponse;
 import com.libora.backend.entity.User;
@@ -38,5 +40,27 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request
+    ) {
+
+        User user = authService.login(request);
+
+        String token = authService.generateToken(user);
+
+        LoginResponse response = new LoginResponse(
+                user.getId(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getRole(),
+                user.getStatus(),
+                token,
+                "Login successful"
+        );
+
+        return ResponseEntity.ok(response);
     }
 }
