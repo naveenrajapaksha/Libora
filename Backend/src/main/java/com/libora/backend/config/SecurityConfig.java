@@ -38,29 +38,65 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        .requestMatchers(
-                                "/api/auth/**"
-                        ).permitAll()
+                        // PUBLIC
+                        .requestMatchers("/api/auth/**").permitAll()
 
                         .requestMatchers(
                                 "/swagger-ui/**",
+                                "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        .requestMatchers(
-                                "/api/health"
-                        ).permitAll()
+                        .requestMatchers("/api/health").permitAll()
 
+                        // MEMBER MANAGEMENT
+                        // ADMIN + LIBRARIAN
+                        .requestMatchers("/api/users/**")
+                        .hasAnyRole("ADMIN", "LIBRARIAN")
+
+                        // LIBRARIAN MANAGEMENT
+                        // ADMIN ONLY
+                        .requestMatchers("/api/librarians/**")
+                        .hasRole("ADMIN")
+
+                        // OTHER AUTHENTICATED ENDPOINTS
                         .anyRequest().authenticated()
                 )
 
-                .exceptionHandling(exception ->
-                        exception.authenticationEntryPoint(
-                                (request, response, authException) ->
-                                        response.sendError(
-                                                HttpServletResponse.SC_UNAUTHORIZED,
-                                                "Unauthorized"
-                                        )
+                .exceptionHandling(exception -> exception
+
+                        .authenticationEntryPoint(
+                                (request, response, authException) -> {
+
+                                    response.setStatus(
+                                            HttpServletResponse.SC_UNAUTHORIZED
+                                    );
+
+                                    response.setContentType(
+                                            "application/json"
+                                    );
+
+                                    response.getWriter().write(
+                                            "{\"error\":\"Unauthorized\"}"
+                                    );
+                                }
+                        )
+
+                        .accessDeniedHandler(
+                                (request, response, accessDeniedException) -> {
+
+                                    response.setStatus(
+                                            HttpServletResponse.SC_FORBIDDEN
+                                    );
+
+                                    response.setContentType(
+                                            "application/json"
+                                    );
+
+                                    response.getWriter().write(
+                                            "{\"error\":\"Forbidden\"}"
+                                    );
+                                }
                         )
                 )
 

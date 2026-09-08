@@ -1,9 +1,12 @@
 package com.libora.backend.controller;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import com.libora.backend.entity.User;
+
+import com.libora.backend.dto.UserResponse;
 import com.libora.backend.service.UserService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
@@ -16,32 +19,64 @@ public class UserController {
         this.userService = userService;
     }
 
+    // Get all users
+    @GetMapping
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+
+        return ResponseEntity.ok(
+                userService.getAllUsers()
+        );
+    }
+
+    // Get user by ID
+    @GetMapping("/{id}")
+    public ResponseEntity<UserResponse> getUserById(
+            @PathVariable Long id
+    ) {
+
+        return ResponseEntity.ok(
+                userService.getUserById(id)
+        );
+    }
+
+    // Approve pending user
     @PutMapping("/{id}/approve")
-    public ResponseEntity<User> approveUser(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> approveUser(
+            @PathVariable Long id
+    ) {
 
         return ResponseEntity.ok(
                 userService.approveUser(id)
         );
     }
 
+    // Reject pending user
     @PutMapping("/{id}/reject")
-    public ResponseEntity<User> rejectUser(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> rejectUser(
+            @PathVariable Long id
+    ) {
 
         return ResponseEntity.ok(
                 userService.rejectUser(id)
         );
     }
 
+    // Deactivate active user
     @PutMapping("/{id}/deactivate")
-    public ResponseEntity<User> deactivateUser(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> deactivateUser(
+            @PathVariable Long id
+    ) {
 
         return ResponseEntity.ok(
                 userService.deactivateUser(id)
         );
     }
 
+    // Activate inactive user
     @PutMapping("/{id}/activate")
-    public ResponseEntity<User> activateUser(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> activateUser(
+            @PathVariable Long id
+    ) {
 
         return ResponseEntity.ok(
                 userService.activateUser(id)
