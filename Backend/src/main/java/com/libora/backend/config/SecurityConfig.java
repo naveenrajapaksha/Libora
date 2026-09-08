@@ -4,6 +4,7 @@ import com.libora.backend.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -38,8 +39,13 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
+                        // =========================
                         // PUBLIC
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // =========================
+
+                        .requestMatchers(
+                                "/api/auth/**"
+                        ).permitAll()
 
                         .requestMatchers(
                                 "/swagger-ui/**",
@@ -47,24 +53,92 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        .requestMatchers("/api/health").permitAll()
+                        .requestMatchers(
+                                "/api/health"
+                        ).permitAll()
 
+
+                        // =========================
                         // MEMBER MANAGEMENT
                         // ADMIN + LIBRARIAN
-                        .requestMatchers("/api/users/**")
-                        .hasAnyRole("ADMIN", "LIBRARIAN")
+                        // =========================
 
+                        .requestMatchers(
+                                "/api/users/**"
+                        ).hasAnyRole(
+                                "ADMIN",
+                                "LIBRARIAN"
+                        )
+
+
+                        // =========================
                         // LIBRARIAN MANAGEMENT
                         // ADMIN ONLY
-                        .requestMatchers("/api/librarians/**")
-                        .hasRole("ADMIN")
+                        // =========================
 
-                        // OTHER AUTHENTICATED ENDPOINTS
+                        .requestMatchers(
+                                "/api/librarians/**"
+                        ).hasRole("ADMIN")
+
+
+                        // =========================
+                        // BOOK MANAGEMENT
+                        // =========================
+
+                        // Create Book
+                        // ADMIN + LIBRARIAN
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/books/**"
+                        ).hasAnyRole(
+                                "ADMIN",
+                                "LIBRARIAN"
+                        )
+
+                        // Update Book
+                        // ADMIN + LIBRARIAN
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/books/**"
+                        ).hasAnyRole(
+                                "ADMIN",
+                                "LIBRARIAN"
+                        )
+
+                        // Delete Book
+                        // ADMIN + LIBRARIAN
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/books/**"
+                        ).hasAnyRole(
+                                "ADMIN",
+                                "LIBRARIAN"
+                        )
+
+                        // View Books
+                        // ADMIN + LIBRARIAN + MEMBER
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/books/**"
+                        ).authenticated()
+
+
+                        // =========================
+                        // EVERYTHING ELSE
+                        // AUTHENTICATED USERS
+                        // =========================
+
                         .anyRequest().authenticated()
                 )
 
+
+                // =========================
+                // EXCEPTION HANDLING
+                // =========================
+
                 .exceptionHandling(exception -> exception
 
+                        // 401 Unauthorized
                         .authenticationEntryPoint(
                                 (request, response, authException) -> {
 
@@ -82,6 +156,7 @@ public class SecurityConfig {
                                 }
                         )
 
+                        // 403 Forbidden
                         .accessDeniedHandler(
                                 (request, response, accessDeniedException) -> {
 
@@ -99,6 +174,11 @@ public class SecurityConfig {
                                 }
                         )
                 )
+
+
+                // =========================
+                // JWT FILTER
+                // =========================
 
                 .addFilterBefore(
                         jwtAuthenticationFilter,

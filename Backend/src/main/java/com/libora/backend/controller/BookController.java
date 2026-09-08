@@ -1,7 +1,10 @@
 package com.libora.backend.controller;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import com.libora.backend.entity.Book;
+
+import com.libora.backend.dto.BookResponse;
+import com.libora.backend.dto.CreateBookRequest;
 import com.libora.backend.service.BookService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,48 +22,75 @@ public class BookController {
         this.bookService = bookService;
     }
 
-    // Create Book
+    // =========================
+    // CREATE BOOK
+    // ADMIN + LIBRARIAN
+    // =========================
+
     @PostMapping
-    public ResponseEntity<Book> createBook(@RequestBody Book book) {
-        Book createdBook = bookService.createBook(book);
+    public ResponseEntity<BookResponse> createBook(
+            @Valid @RequestBody CreateBookRequest request
+    ) {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(createdBook);
+                .body(bookService.createBook(request));
     }
 
-    // Get All Books
+    // =========================
+    // GET ALL BOOKS
+    // ALL AUTHENTICATED USERS
+    // =========================
+
     @GetMapping
-    public ResponseEntity<List<Book>> getAllBooks() {
-        return ResponseEntity.ok(bookService.getAllBooks());
+    public ResponseEntity<List<BookResponse>> getAllBooks() {
+
+        return ResponseEntity.ok(
+                bookService.getAllBooks()
+        );
     }
 
-    // Get Book By ID
+    // =========================
+    // GET BOOK BY ID
+    // ALL AUTHENTICATED USERS
+    // =========================
+
     @GetMapping("/{id}")
-    public ResponseEntity<Book> getBookById(
+    public ResponseEntity<BookResponse> getBookById(
             @PathVariable Long id
     ) {
+
         return ResponseEntity.ok(
                 bookService.getBookById(id)
         );
     }
 
-    // Update Book
+    // =========================
+    // UPDATE BOOK
+    // ADMIN + LIBRARIAN
+    // =========================
+
     @PutMapping("/{id}")
-    public ResponseEntity<Book> updateBook(
+    public ResponseEntity<BookResponse> updateBook(
             @PathVariable Long id,
-            @RequestBody Book book
+            @Valid @RequestBody CreateBookRequest request
     ) {
+
         return ResponseEntity.ok(
-                bookService.updateBook(id, book)
+                bookService.updateBook(id, request)
         );
     }
 
-    // Delete Book
+    // =========================
+    // DELETE BOOK
+    // ADMIN + LIBRARIAN
+    // =========================
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteBook(
             @PathVariable Long id
     ) {
+
         bookService.deleteBook(id);
 
         return ResponseEntity.noContent().build();

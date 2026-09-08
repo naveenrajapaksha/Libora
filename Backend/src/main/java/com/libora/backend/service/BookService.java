@@ -1,5 +1,7 @@
 package com.libora.backend.service;
 
+import com.libora.backend.dto.BookResponse;
+import com.libora.backend.dto.CreateBookRequest;
 import com.libora.backend.entity.Book;
 import com.libora.backend.repository.BookRepository;
 import org.springframework.stereotype.Service;
@@ -16,53 +18,69 @@ public class BookService {
     }
 
     // Create Book
-    public Book createBook(Book book) {
+    public BookResponse createBook(CreateBookRequest request) {
 
-        if (bookRepository.existsByIsbn(book.getIsbn())) {
-            throw new RuntimeException("A book with this ISBN already exists");
-        }
-
-        if (book.getQuantity() == null || book.getQuantity() < 0) {
-            throw new RuntimeException("Quantity cannot be negative");
-        }
-
-        book.setAvailableQuantity(book.getQuantity());
-
-        return bookRepository.save(book);
-    }
-
-    // Get All Books
-    public List<Book> getAllBooks() {
-        return bookRepository.findAll();
-    }
-
-    // Get Book By ID
-    public Book getBookById(Long id) {
-
-        return bookRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Book not found with id: " + id)
-                );
-    }
-
-    // Update Book
-    public Book updateBook(Long id, Book updatedBook) {
-
-        Book existingBook = getBookById(id);
-
-        if (!existingBook.getIsbn().equals(updatedBook.getIsbn())
-                && bookRepository.existsByIsbn(updatedBook.getIsbn())) {
-
+        if (bookRepository.existsByIsbn(request.getIsbn())) {
             throw new RuntimeException(
                     "A book with this ISBN already exists"
             );
         }
 
-        if (updatedBook.getQuantity() == null
-                || updatedBook.getQuantity() < 0) {
+        Book book = new Book(
+                request.getTitle(),
+                request.getAuthor(),
+                request.getIsbn(),
+                request.getCategory(),
+                request.getQuantity(),
+                request.getQuantity()
+        );
+
+        return new BookResponse(
+                bookRepository.save(book)
+        );
+    }
+
+    // Get All Books
+    public List<BookResponse> getAllBooks() {
+
+        return bookRepository.findAll()
+                .stream()
+                .map(BookResponse::new)
+                .toList();
+    }
+
+    // Get Book By ID
+    public BookResponse getBookById(Long id) {
+
+        Book book = bookRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Book not found with id: " + id
+                        )
+                );
+
+        return new BookResponse(book);
+    }
+
+    // Update Book
+    public BookResponse updateBook(
+            Long id,
+            CreateBookRequest request
+    ) {
+
+        Book existingBook = bookRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Book not found with id: " + id
+                        )
+                );
+
+        // Check duplicate ISBN
+        if (!existingBook.getIsbn().equals(request.getIsbn())
+                && bookRepository.existsByIsbn(request.getIsbn())) {
 
             throw new RuntimeException(
-                    "Quantity cannot be negative"
+                    "A book with this ISBN already exists"
             );
         }
 
@@ -70,29 +88,36 @@ public class BookService {
                 existingBook.getQuantity()
                         - existingBook.getAvailableQuantity();
 
-        if (updatedBook.getQuantity() < issuedCopies) {
+        if (request.getQuantity() < issuedCopies) {
             throw new RuntimeException(
                     "Quantity cannot be less than currently issued copies"
             );
         }
 
-        existingBook.setTitle(updatedBook.getTitle());
-        existingBook.setAuthor(updatedBook.getAuthor());
-        existingBook.setIsbn(updatedBook.getIsbn());
-        existingBook.setCategory(updatedBook.getCategory());
-        existingBook.setQuantity(updatedBook.getQuantity());
+        existingBook.setTitle(request.getTitle());
+        existingBook.setAuthor(request.getAuthor());
+        existingBook.setIsbn(request.getIsbn());
+        existingBook.setCategory(request.getCategory());
+        existingBook.setQuantity(request.getQuantity());
 
         existingBook.setAvailableQuantity(
-                updatedBook.getQuantity() - issuedCopies
+                request.getQuantity() - issuedCopies
         );
 
-        return bookRepository.save(existingBook);
+        return new BookResponse(
+                bookRepository.save(existingBook)
+        );
     }
 
     // Delete Book
     public void deleteBook(Long id) {
 
-        Book book = getBookById(id);
+        Book book = bookRepository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Book not found with id: " + id
+                        )
+                );
 
         bookRepository.delete(book);
     }
