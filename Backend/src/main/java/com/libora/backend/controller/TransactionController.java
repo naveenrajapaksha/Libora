@@ -2,7 +2,6 @@ package com.libora.backend.controller;
 
 import com.libora.backend.dto.BorrowBookRequest;
 import com.libora.backend.dto.TransactionResponse;
-import com.libora.backend.service.ReminderService;
 import com.libora.backend.service.TransactionService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -18,14 +17,11 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionService transactionService;
-    private final ReminderService reminderService;
 
     public TransactionController(
-            TransactionService transactionService,
-            ReminderService reminderService
+            TransactionService transactionService
     ) {
         this.transactionService = transactionService;
-        this.reminderService = reminderService;
     }
 
     // =========================
@@ -98,24 +94,6 @@ public class TransactionController {
 
         return ResponseEntity.ok(
                 transactionService.getUserTransactions(userId)
-        );
-    }
-
-    // =========================
-    // TEST REMINDER
-    // =========================
-    // Temporary endpoint for testing
-    // notification + email
-
-    @PostMapping("/{id}/test-reminder")
-    public ResponseEntity<String> testReminder(
-            @PathVariable Long id
-    ) {
-
-        reminderService.sendTestReminder(id);
-
-        return ResponseEntity.ok(
-                "Test reminder sent successfully"
         );
     }
 }
