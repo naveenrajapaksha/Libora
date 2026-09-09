@@ -1,7 +1,7 @@
 package com.libora.backend.controller;
 
 import com.libora.backend.dto.CreateLibrarianRequest;
-import com.libora.backend.entity.User;
+import com.libora.backend.dto.LibrarianResponse;
 import com.libora.backend.service.LibrarianService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.HttpStatus;
@@ -17,33 +17,48 @@ public class LibrarianController {
 
     private final LibrarianService librarianService;
 
-    public LibrarianController(LibrarianService librarianService) {
+    public LibrarianController(
+            LibrarianService librarianService
+    ) {
         this.librarianService = librarianService;
     }
 
-    // Create librarian
+    // =========================
+    // CREATE LIBRARIAN
+    // =========================
+
     @PostMapping
-    public ResponseEntity<User> createLibrarian(
+    public ResponseEntity<LibrarianResponse> createLibrarian(
             @RequestBody CreateLibrarianRequest request
     ) {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(librarianService.createLibrarian(request));
+                .body(
+                        librarianService.createLibrarian(request)
+                );
     }
 
-    // Get all librarians
+    // =========================
+    // GET ALL LIBRARIANS
+    // =========================
+
     @GetMapping
-    public ResponseEntity<List<User>> getAllLibrarians() {
+    public ResponseEntity<List<LibrarianResponse>>
+    getAllLibrarians() {
 
         return ResponseEntity.ok(
                 librarianService.getAllLibrarians()
         );
     }
 
-    // Get librarian by ID
+    // =========================
+    // GET LIBRARIAN BY ID
+    // =========================
+
     @GetMapping("/{id}")
-    public ResponseEntity<User> getLibrarianById(
+    public ResponseEntity<LibrarianResponse>
+    getLibrarianById(
             @PathVariable Long id
     ) {
 
@@ -52,9 +67,13 @@ public class LibrarianController {
         );
     }
 
-    // Activate librarian
+    // =========================
+    // ACTIVATE LIBRARIAN
+    // =========================
+
     @PutMapping("/{id}/activate")
-    public ResponseEntity<User> activateLibrarian(
+    public ResponseEntity<LibrarianResponse>
+    activateLibrarian(
             @PathVariable Long id
     ) {
 
@@ -63,9 +82,13 @@ public class LibrarianController {
         );
     }
 
-    // Deactivate librarian
+    // =========================
+    // DEACTIVATE LIBRARIAN
+    // =========================
+
     @PutMapping("/{id}/deactivate")
-    public ResponseEntity<User> deactivateLibrarian(
+    public ResponseEntity<LibrarianResponse>
+    deactivateLibrarian(
             @PathVariable Long id
     ) {
 
@@ -74,7 +97,10 @@ public class LibrarianController {
         );
     }
 
-    // Delete librarian
+    // =========================
+    // DELETE LIBRARIAN
+    // =========================
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteLibrarian(
             @PathVariable Long id
