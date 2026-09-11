@@ -29,7 +29,17 @@ public class SecurityConfig {
     ) throws Exception {
 
         http
+
+                // =========================
+                // CSRF
+                // =========================
+
                 .csrf(csrf -> csrf.disable())
+
+
+                // =========================
+                // SESSION
+                // =========================
 
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
@@ -37,10 +47,15 @@ public class SecurityConfig {
                         )
                 )
 
+
+                // =========================
+                // AUTHORIZATION
+                // =========================
+
                 .authorizeHttpRequests(auth -> auth
 
                         // =========================
-                        // PUBLIC
+                        // PUBLIC ENDPOINTS
                         // =========================
 
                         .requestMatchers(
@@ -59,7 +74,37 @@ public class SecurityConfig {
 
 
                         // =========================
-                        // MEMBER MANAGEMENT
+                        // ADMIN
+                        // ADMIN ONLY
+                        // =========================
+
+                        .requestMatchers(
+                                "/api/admin/**"
+                        ).hasRole("ADMIN")
+
+
+                        // =========================
+                        // LIBRARIAN DASHBOARD
+                        // LIBRARIAN ONLY
+                        // =========================
+
+                        .requestMatchers(
+                                "/api/librarian/**"
+                        ).hasRole("LIBRARIAN")
+
+
+                        // =========================
+                        // MEMBER DASHBOARD
+                        // MEMBER ONLY
+                        // =========================
+
+                        .requestMatchers(
+                                "/api/member/**"
+                        ).hasRole("MEMBER")
+
+
+                        // =========================
+                        // USER / MEMBER MANAGEMENT
                         // ADMIN + LIBRARIAN
                         // =========================
 
@@ -87,6 +132,7 @@ public class SecurityConfig {
 
                         // Create Book
                         // ADMIN + LIBRARIAN
+
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/books/**"
@@ -95,8 +141,10 @@ public class SecurityConfig {
                                 "LIBRARIAN"
                         )
 
+
                         // Update Book
                         // ADMIN + LIBRARIAN
+
                         .requestMatchers(
                                 HttpMethod.PUT,
                                 "/api/books/**"
@@ -105,8 +153,10 @@ public class SecurityConfig {
                                 "LIBRARIAN"
                         )
 
+
                         // Delete Book
                         // ADMIN + LIBRARIAN
+
                         .requestMatchers(
                                 HttpMethod.DELETE,
                                 "/api/books/**"
@@ -115,8 +165,10 @@ public class SecurityConfig {
                                 "LIBRARIAN"
                         )
 
+
                         // View Books
                         // ADMIN + LIBRARIAN + MEMBER
+
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/books/**"
@@ -124,8 +176,28 @@ public class SecurityConfig {
 
 
                         // =========================
+                        // TRANSACTIONS
+                        // =========================
+
+                        // All transaction endpoints
+                        // require authentication
+
+                        .requestMatchers(
+                                "/api/transactions/**"
+                        ).authenticated()
+
+
+                        // =========================
+                        // NOTIFICATIONS
+                        // =========================
+
+                        .requestMatchers(
+                                "/api/notifications/**"
+                        ).authenticated()
+
+
+                        // =========================
                         // EVERYTHING ELSE
-                        // AUTHENTICATED USERS
                         // =========================
 
                         .anyRequest().authenticated()
@@ -138,7 +210,10 @@ public class SecurityConfig {
 
                 .exceptionHandling(exception -> exception
 
-                        // 401 Unauthorized
+                        // =========================
+                        // 401 UNAUTHORIZED
+                        // =========================
+
                         .authenticationEntryPoint(
                                 (request, response, authException) -> {
 
@@ -156,7 +231,11 @@ public class SecurityConfig {
                                 }
                         )
 
-                        // 403 Forbidden
+
+                        // =========================
+                        // 403 FORBIDDEN
+                        // =========================
+
                         .accessDeniedHandler(
                                 (request, response, accessDeniedException) -> {
 
