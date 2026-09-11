@@ -1,9 +1,14 @@
 package com.libora.backend.service;
 
+import com.libora.backend.dto.NotificationResponse;
 import com.libora.backend.entity.Notification;
+import com.libora.backend.entity.Role;
 import com.libora.backend.entity.User;
+import com.libora.backend.exception.AccessDeniedException;
+import com.libora.backend.exception.ResourceNotFoundException;
 import com.libora.backend.repository.NotificationRepository;
 import com.libora.backend.repository.UserRepository;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +41,7 @@ public class NotificationService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "User not found with id: " + userId
                         )
                 );
@@ -54,18 +59,24 @@ public class NotificationService {
     // GET USER NOTIFICATIONS
     // =========================
 
-    public List<Notification> getUserNotifications(
-            Long userId
+    public List<NotificationResponse> getUserNotifications(
+            Long userId,
+            Authentication authentication
     ) {
 
+        checkUserAccess(userId, authentication);
+
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException(
+            throw new ResourceNotFoundException(
                     "User not found with id: " + userId
             );
         }
 
         return notificationRepository
-                .findByUserIdOrderByCreatedAtDesc(userId);
+                .findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(NotificationResponse::new)
+                .toList();
     }
 
     // =========================
@@ -73,20 +84,31 @@ public class NotificationService {
     // =========================
 
     @Transactional
-    public Notification markAsRead(Long notificationId) {
+    public NotificationResponse markAsRead(
+            Long notificationId,
+            Authentication authentication
+    ) {
 
         Notification notification =
                 notificationRepository.findById(notificationId)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResourceNotFoundException(
                                         "Notification not found with id: "
                                                 + notificationId
                                 )
                         );
 
+        checkUserAccess(
+                notification.getUser().getId(),
+                authentication
+        );
+
         notification.setRead(true);
 
-        return notificationRepository.save(notification);
+        Notification savedNotification =
+                notificationRepository.save(notification);
+
+        return new NotificationResponse(savedNotification);
     }
 
     // =========================
@@ -94,7 +116,18 @@ public class NotificationService {
     // =========================
 
     @Transactional
-    public void markAllAsRead(Long userId) {
+    public void markAllAsRead(
+            Long userId,
+            Authentication authentication
+    ) {
+
+        checkUserAccess(userId, authentication);
+
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException(
+                    "User not found with id: " + userId
+            );
+        }
 
         List<Notification> notifications =
                 notificationRepository
@@ -105,5 +138,39 @@ public class NotificationService {
         );
 
         notificationRepository.saveAll(notifications);
+    }
+
+    // =========================
+    // ACCESS CONTROL
+    // =========================
+
+    private void checkUserAccess(
+            Long requestedUserId,
+            Authentication authentication
+    ) {
+
+        User authenticatedUser = userRepository
+                .findByEmail(authentication.getName())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Authenticated user not found"
+                        )
+                );
+
+        Role role = authenticatedUser.getRole();
+
+        // Admin and Librarian can access user notifications
+        if (role == Role.ADMIN || role == Role.LIBRARIAN) {
+            return;
+        }
+
+        // Member can access only their own notifications
+        if (role == Role.MEMBER &&
+                !authenticatedUser.getId().equals(requestedUserId)) {
+
+            throw new AccessDeniedException(
+                    "You can only access your own notifications"
+            );
+        }
     }
 }

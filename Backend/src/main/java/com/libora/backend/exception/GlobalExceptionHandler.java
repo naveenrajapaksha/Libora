@@ -13,13 +13,17 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Validation errors
+    // =========================
+    // VALIDATION ERRORS
+    // =========================
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(
             MethodArgumentNotValidException exception
     ) {
 
-        Map<String, String> validationErrors = new HashMap<>();
+        Map<String, String> validationErrors =
+                new HashMap<>();
 
         exception.getBindingResult()
                 .getFieldErrors()
@@ -30,48 +34,184 @@ public class GlobalExceptionHandler {
                         )
                 );
 
-        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> response =
+                new HashMap<>();
 
-        response.put("timestamp", LocalDateTime.now());
-        response.put("status", HttpStatus.BAD_REQUEST.value());
-        response.put("error", "Validation Failed");
-        response.put("message", "Please check the provided data");
-        response.put("errors", validationErrors);
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                HttpStatus.BAD_REQUEST.value()
+        );
+
+        response.put(
+                "error",
+                "Validation Failed"
+        );
+
+        response.put(
+                "message",
+                "Please check the provided data"
+        );
+
+        response.put(
+                "errors",
+                validationErrors
+        );
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
     }
 
-    // Duplicate email / business errors
+    // =========================
+    // ACCESS DENIED / FORBIDDEN
+    // =========================
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>>
+    handleAccessDeniedException(
+            AccessDeniedException exception
+    ) {
+
+        Map<String, Object> response =
+                new HashMap<>();
+
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                HttpStatus.FORBIDDEN.value()
+        );
+
+        response.put(
+                "error",
+                "Forbidden"
+        );
+
+        response.put(
+                "message",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(response);
+    }
+
+    // =========================
+    // RESOURCE NOT FOUND
+    // =========================
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>>
+    handleResourceNotFoundException(
+            ResourceNotFoundException exception
+    ) {
+
+        Map<String, Object> response =
+                new HashMap<>();
+
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                HttpStatus.NOT_FOUND.value()
+        );
+
+        response.put(
+                "error",
+                "Not Found"
+        );
+
+        response.put(
+                "message",
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(response);
+    }
+
+    // =========================
+    // DUPLICATE / CONFLICT
+    // =========================
+
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(
+    public ResponseEntity<Map<String, Object>>
+    handleIllegalArgumentException(
             IllegalArgumentException exception
     ) {
 
-        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> response =
+                new HashMap<>();
 
-        response.put("timestamp", LocalDateTime.now());
-        response.put("status", HttpStatus.CONFLICT.value());
-        response.put("error", "Conflict");
-        response.put("message", exception.getMessage());
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                HttpStatus.CONFLICT.value()
+        );
+
+        response.put(
+                "error",
+                "Conflict"
+        );
+
+        response.put(
+                "message",
+                exception.getMessage()
+        );
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(response);
     }
 
-    // Unexpected errors
+    // =========================
+    // UNEXPECTED ERRORS
+    // =========================
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneralException(
+    public ResponseEntity<Map<String, Object>>
+    handleGeneralException(
             Exception exception
     ) {
 
-        Map<String, Object> response = new HashMap<>();
+        // Keep detailed exception in server logs.
+        exception.printStackTrace();
 
-        response.put("timestamp", LocalDateTime.now());
-        response.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        response.put("error", "Internal Server Error");
+        Map<String, Object> response =
+                new HashMap<>();
+
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                HttpStatus.INTERNAL_SERVER_ERROR.value()
+        );
+
+        response.put(
+                "error",
+                "Internal Server Error"
+        );
+
         response.put(
                 "message",
                 "Something went wrong. Please try again later."

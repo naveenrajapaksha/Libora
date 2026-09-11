@@ -1,9 +1,11 @@
 package com.libora.backend.controller;
 
+import com.libora.backend.dto.NotificationResponse;
 import com.libora.backend.entity.Notification;
 import com.libora.backend.service.NotificationService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,12 +28,16 @@ public class NotificationController {
     // =========================
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Notification>> getUserNotifications(
-            @PathVariable Long userId
+    public ResponseEntity<List<NotificationResponse>> getUserNotifications(
+            @PathVariable Long userId,
+            Authentication authentication
     ) {
 
         return ResponseEntity.ok(
-                notificationService.getUserNotifications(userId)
+                notificationService.getUserNotifications(
+                        userId,
+                        authentication
+                )
         );
     }
 
@@ -40,12 +46,16 @@ public class NotificationController {
     // =========================
 
     @PutMapping("/{notificationId}/read")
-    public ResponseEntity<Notification> markAsRead(
-            @PathVariable Long notificationId
+    public ResponseEntity<NotificationResponse> markAsRead(
+            @PathVariable Long notificationId,
+            Authentication authentication
     ) {
 
         return ResponseEntity.ok(
-                notificationService.markAsRead(notificationId)
+                notificationService.markAsRead(
+                        notificationId,
+                        authentication
+                )
         );
     }
 
@@ -55,10 +65,14 @@ public class NotificationController {
 
     @PutMapping("/user/{userId}/read-all")
     public ResponseEntity<Void> markAllAsRead(
-            @PathVariable Long userId
+            @PathVariable Long userId,
+            Authentication authentication
     ) {
 
-        notificationService.markAllAsRead(userId);
+        notificationService.markAllAsRead(
+                userId,
+                authentication
+        );
 
         return ResponseEntity.noContent().build();
     }

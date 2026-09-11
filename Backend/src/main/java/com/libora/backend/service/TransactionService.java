@@ -3,13 +3,17 @@ package com.libora.backend.service;
 import com.libora.backend.dto.BorrowBookRequest;
 import com.libora.backend.dto.TransactionResponse;
 import com.libora.backend.entity.Book;
+import com.libora.backend.entity.Role;
 import com.libora.backend.entity.Transaction;
 import com.libora.backend.entity.TransactionStatus;
 import com.libora.backend.entity.User;
+import com.libora.backend.exception.AccessDeniedException;
+import com.libora.backend.exception.ResourceNotFoundException;
 import com.libora.backend.repository.BookRepository;
 import com.libora.backend.repository.TransactionRepository;
 import com.libora.backend.repository.UserRepository;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,8 +29,12 @@ public class TransactionService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
-    // Penalty rate
+    // =========================
+    // CONSTANTS
+    // =========================
+
     private static final double PENALTY_PER_DAY = 10.00;
+    private static final int BORROWING_PERIOD_DAYS = 14;
 
     public TransactionService(
             TransactionRepository transactionRepository,
@@ -46,53 +54,101 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse borrowBook(
-            BorrowBookRequest request
+            BorrowBookRequest request,
+            Authentication authentication
     ) {
+
+        // =========================
+        // AUTHORIZATION CHECK
+        // =========================
+
+        User authenticatedUser = getAuthenticatedUser(authentication);
+
+        /*
+         * MEMBER can borrow only for their own account.
+         *
+         * ADMIN / LIBRARIAN can create a borrowing transaction
+         * for any active user.
+         */
+        if (authenticatedUser.getRole() == Role.MEMBER) {
+
+            if (!authenticatedUser.getId().equals(request.getUserId())) {
+                throw new AccessDeniedException(
+                        "Members can only borrow books for their own account"
+                );
+            }
+        }
+
+        // =========================
+        // FIND BOOK
+        // =========================
 
         Book book = bookRepository.findById(request.getBookId())
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Book not found with id: "
                                         + request.getBookId()
                         )
                 );
 
+        // =========================
+        // FIND USER
+        // =========================
+
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "User not found with id: "
                                         + request.getUserId()
                         )
                 );
 
-        // Check user status
-        if (!user.getStatus().name().equals("ACTIVE")) {
+        // =========================
+        // CHECK USER STATUS
+        // =========================
+
+        if (user.getStatus() == null ||
+                !"ACTIVE".equals(user.getStatus().name())) {
+
             throw new RuntimeException(
                     "Only active users can borrow books"
             );
         }
 
-        // Check available copies
-        if (book.getAvailableQuantity() <= 0) {
+        // =========================
+        // CHECK AVAILABLE COPIES
+        // =========================
+
+        if (book.getAvailableQuantity() == null ||
+                book.getAvailableQuantity() <= 0) {
+
             throw new RuntimeException(
                     "Book is currently unavailable"
             );
         }
 
-        // Check whether user already borrowed this book
+        // =========================
+        // CHECK DUPLICATE BORROW
+        // =========================
+
         List<Transaction> userTransactions =
                 transactionRepository.findByUserId(user.getId());
 
         boolean alreadyBorrowed =
                 userTransactions.stream()
                         .anyMatch(transaction ->
-                                transaction.getBook().getId()
-                                        .equals(book.getId())
+
+                                transaction.getBook() != null
+                                        &&
+                                        transaction.getBook().getId()
+                                                .equals(book.getId())
                                         &&
                                         (
                                                 transaction.getStatus()
                                                         == TransactionStatus.BORROWED
+
                                                         ||
+
                                                         transaction.getStatus()
                                                                 == TransactionStatus.OVERDUE
                                         )
@@ -104,12 +160,18 @@ public class TransactionService {
             );
         }
 
-        // Borrow date
+        // =========================
+        // BORROW DATE
+        // =========================
+
         LocalDate borrowDate = LocalDate.now();
 
-        // Maximum borrowing period = 14 days
         LocalDate dueDate =
-                borrowDate.plusDays(14);
+                borrowDate.plusDays(BORROWING_PERIOD_DAYS);
+
+        // =========================
+        // CREATE TRANSACTION
+        // =========================
 
         Transaction transaction = new Transaction(
                 book,
@@ -119,22 +181,27 @@ public class TransactionService {
                 TransactionStatus.BORROWED
         );
 
-        // New transaction starts with zero penalty
         transaction.setPenaltyAmount(0.0);
 
-        // Decrease available quantity
+        // =========================
+        // DECREASE AVAILABLE COPIES
+        // =========================
+
         book.setAvailableQuantity(
                 book.getAvailableQuantity() - 1
         );
 
         bookRepository.save(book);
 
-        // Save transaction
+        // =========================
+        // SAVE TRANSACTION
+        // =========================
+
         Transaction savedTransaction =
                 transactionRepository.save(transaction);
 
         // =========================
-        // CREATE BORROW NOTIFICATION
+        // BORROW NOTIFICATION
         // =========================
 
         notificationService.createNotification(
@@ -158,17 +225,38 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse returnBook(
-            Long transactionId
+            Long transactionId,
+            Authentication authentication
     ) {
+
+        User authenticatedUser =
+                getAuthenticatedUser(authentication);
+
+        // =========================
+        // FIND TRANSACTION
+        // =========================
 
         Transaction transaction =
                 transactionRepository.findById(transactionId)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResourceNotFoundException(
                                         "Transaction not found with id: "
                                                 + transactionId
                                 )
                         );
+
+        // =========================
+        // TRANSACTION ACCESS CHECK
+        // =========================
+
+        checkTransactionAccess(
+                transaction,
+                authenticatedUser
+        );
+
+        // =========================
+        // CHECK ALREADY RETURNED
+        // =========================
 
         if (transaction.getStatus()
                 == TransactionStatus.RETURNED) {
@@ -178,10 +266,14 @@ public class TransactionService {
             );
         }
 
+        // =========================
+        // RETURN DATE
+        // =========================
+
         LocalDate returnDate = LocalDate.now();
 
         // =========================
-        // CALCULATE PENALTY
+        // CALCULATE FINAL PENALTY
         // =========================
 
         double penalty = calculatePenalty(
@@ -191,25 +283,38 @@ public class TransactionService {
 
         transaction.setReturnDate(returnDate);
 
-        transaction.setPenaltyAmount(penalty);
+        transaction.setPenaltyAmount(
+                penalty
+        );
 
         transaction.setStatus(
                 TransactionStatus.RETURNED
         );
 
         // =========================
-        // INCREASE AVAILABLE QUANTITY
+        // INCREASE AVAILABLE COPIES
         // =========================
 
         Book book = transaction.getBook();
 
-        book.setAvailableQuantity(
-                book.getAvailableQuantity() + 1
-        );
+        if (book != null) {
 
-        bookRepository.save(book);
+            int currentAvailable =
+                    book.getAvailableQuantity() == null
+                            ? 0
+                            : book.getAvailableQuantity();
 
-        // Save updated transaction
+            book.setAvailableQuantity(
+                    currentAvailable + 1
+            );
+
+            bookRepository.save(book);
+        }
+
+        // =========================
+        // SAVE TRANSACTION
+        // =========================
+
         Transaction updatedTransaction =
                 transactionRepository.save(transaction);
 
@@ -217,13 +322,18 @@ public class TransactionService {
         // RETURN NOTIFICATION
         // =========================
 
+        String bookTitle =
+                book != null
+                        ? book.getTitle()
+                        : "the borrowed book";
+
         String returnMessage;
 
         if (penalty > 0) {
 
             returnMessage =
                     "You have returned \""
-                            + book.getTitle()
+                            + bookTitle
                             + "\". "
                             + "Your overdue penalty is Rs. "
                             + String.format("%.2f", penalty)
@@ -233,20 +343,150 @@ public class TransactionService {
 
             returnMessage =
                     "You have successfully returned \""
-                            + book.getTitle()
+                            + bookTitle
                             + "\". "
                             + "No overdue penalty was applied.";
         }
 
-        notificationService.createNotification(
-                transaction.getUser().getId(),
-                "Book Returned",
-                returnMessage
-        );
+        if (transaction.getUser() != null) {
+
+            notificationService.createNotification(
+                    transaction.getUser().getId(),
+                    "Book Returned",
+                    returnMessage
+            );
+        }
 
         return new TransactionResponse(
                 updatedTransaction
         );
+    }
+
+    // =========================
+    // AUTOMATIC OVERDUE CHECK
+    // =========================
+
+    /*
+     * Runs every day at midnight.
+     *
+     * Important:
+     * We check BOTH BORROWED and OVERDUE transactions.
+     *
+     * This prevents the penalty from freezing after the
+     * transaction becomes OVERDUE.
+     */
+    @Scheduled(cron = "0 0 0 * * *")
+    @Transactional
+    public void updateOverdueTransactions() {
+
+        LocalDate today = LocalDate.now();
+
+        // =========================
+        // BORROWED TRANSACTIONS
+        // =========================
+
+        List<Transaction> borrowedTransactions =
+                transactionRepository.findByStatus(
+                        TransactionStatus.BORROWED
+                );
+
+        for (Transaction transaction :
+                borrowedTransactions) {
+
+            if (transaction.getDueDate() == null) {
+                continue;
+            }
+
+            // Due date has passed
+            if (today.isAfter(transaction.getDueDate())) {
+
+                long overdueDays =
+                        ChronoUnit.DAYS.between(
+                                transaction.getDueDate(),
+                                today
+                        );
+
+                double penalty =
+                        overdueDays * PENALTY_PER_DAY;
+
+                transaction.setPenaltyAmount(
+                        penalty
+                );
+
+                transaction.setStatus(
+                        TransactionStatus.OVERDUE
+                );
+
+                transactionRepository.save(
+                        transaction
+                );
+
+                // =========================
+                // OVERDUE NOTIFICATION
+                // =========================
+
+                if (transaction.getUser() != null
+                        && transaction.getBook() != null) {
+
+                    String message =
+                            "Your borrowed book \""
+                                    + transaction.getBook().getTitle()
+                                    + "\" is overdue by "
+                                    + overdueDays
+                                    + " day(s). "
+                                    + "Current penalty: Rs. "
+                                    + String.format(
+                                    "%.2f",
+                                    penalty
+                            )
+                                    + ".";
+
+                    notificationService.createNotification(
+                            transaction.getUser().getId(),
+                            "Book Overdue",
+                            message
+                    );
+                }
+            }
+        }
+
+        // =========================
+        // UPDATE EXISTING OVERDUE
+        // =========================
+
+        List<Transaction> overdueTransactions =
+                transactionRepository.findByStatus(
+                        TransactionStatus.OVERDUE
+                );
+
+        for (Transaction transaction :
+                overdueTransactions) {
+
+            if (transaction.getDueDate() == null) {
+                continue;
+            }
+
+            long overdueDays =
+                    ChronoUnit.DAYS.between(
+                            transaction.getDueDate(),
+                            today
+                    );
+
+            if (overdueDays <= 0) {
+                continue;
+            }
+
+            double penalty =
+                    overdueDays * PENALTY_PER_DAY;
+
+            transaction.setPenaltyAmount(
+                    penalty
+            );
+
+            transactionRepository.save(
+                    transaction
+            );
+        }
     }
 
     // =========================
@@ -257,6 +497,12 @@ public class TransactionService {
             LocalDate dueDate,
             LocalDate returnDate
     ) {
+
+        if (dueDate == null ||
+                returnDate == null) {
+
+            return 0.0;
+        }
 
         // Returned on or before due date
         if (!returnDate.isAfter(dueDate)) {
@@ -273,104 +519,19 @@ public class TransactionService {
     }
 
     // =========================
-    // AUTOMATIC OVERDUE CHECK
-    // =========================
-
-    @Scheduled(fixedRate = 60000)
-    @Transactional
-    public void updateOverdueTransactions() {
-
-        System.out.println(
-                "===== OVERDUE CHECK RUNNING ====="
-        );
-
-        LocalDate today = LocalDate.now();
-
-        List<Transaction> borrowedTransactions =
-                transactionRepository.findByStatus(
-                        TransactionStatus.BORROWED
-                );
-
-        for (Transaction transaction :
-                borrowedTransactions) {
-
-            // Skip if not overdue
-            if (!today.isAfter(
-                    transaction.getDueDate()
-            )) {
-                continue;
-            }
-
-            // Calculate overdue days
-            long overdueDays =
-                    ChronoUnit.DAYS.between(
-                            transaction.getDueDate(),
-                            today
-                    );
-
-            // Calculate current penalty
-            double penalty =
-                    overdueDays * PENALTY_PER_DAY;
-
-            // Change status to OVERDUE
-            transaction.setStatus(
-                    TransactionStatus.OVERDUE
-            );
-
-            // Update penalty
-            transaction.setPenaltyAmount(
-                    penalty
-            );
-
-            // Save transaction
-            transactionRepository.save(transaction);
-
-            // =========================
-            // OVERDUE NOTIFICATION
-            // =========================
-
-            String bookTitle =
-                    transaction.getBook().getTitle();
-
-            Long userId =
-                    transaction.getUser().getId();
-
-            String title =
-                    "Book Overdue";
-
-            String message =
-                    "Your borrowed book \""
-                            + bookTitle
-                            + "\" is overdue by "
-                            + overdueDays
-                            + " day(s). "
-                            + "Current penalty: Rs. "
-                            + String.format(
-                            "%.2f",
-                            penalty
-                    )
-                            + ".";
-
-            notificationService.createNotification(
-                    userId,
-                    title,
-                    message
-            );
-
-            System.out.println(
-                    "Overdue updated: Transaction ID = "
-                            + transaction.getId()
-                            + ", Penalty = Rs. "
-                            + penalty
-            );
-        }
-    }
-
-    // =========================
     // GET ALL TRANSACTIONS
     // =========================
 
-    public List<TransactionResponse> getAllTransactions() {
+    public List<TransactionResponse> getAllTransactions(
+            Authentication authentication
+    ) {
+
+        User authenticatedUser =
+                getAuthenticatedUser(authentication);
+
+        checkAdminOrLibrarian(
+                authenticatedUser
+        );
 
         return transactionRepository.findAll()
                 .stream()
@@ -383,17 +544,30 @@ public class TransactionService {
     // =========================
 
     public TransactionResponse getTransactionById(
-            Long id
+            Long id,
+            Authentication authentication
     ) {
+
+        User authenticatedUser =
+                getAuthenticatedUser(authentication);
 
         Transaction transaction =
                 transactionRepository.findById(id)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResourceNotFoundException(
                                         "Transaction not found with id: "
                                                 + id
                                 )
                         );
+
+        // =========================
+        // OWNERSHIP / ROLE CHECK
+        // =========================
+
+        checkTransactionAccess(
+                transaction,
+                authenticatedUser
+        );
 
         return new TransactionResponse(
                 transaction
@@ -405,12 +579,35 @@ public class TransactionService {
     // =========================
 
     public List<TransactionResponse> getUserTransactions(
-            Long userId
+            Long userId,
+            Authentication authentication
     ) {
 
+        User authenticatedUser =
+                getAuthenticatedUser(authentication);
+
+        // =========================
+        // USER EXISTENCE CHECK
+        // =========================
+
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException(
-                    "User not found with id: " + userId
+
+            throw new ResourceNotFoundException(
+                    "User not found with id: "
+                            + userId
+            );
+        }
+
+        // =========================
+        // OWNERSHIP CHECK
+        // =========================
+
+        if (authenticatedUser.getRole() == Role.MEMBER
+                &&
+                !authenticatedUser.getId().equals(userId)) {
+
+            throw new AccessDeniedException(
+                    "You can only view your own transactions"
             );
         }
 
@@ -419,5 +616,95 @@ public class TransactionService {
                 .stream()
                 .map(TransactionResponse::new)
                 .toList();
+    }
+
+    // =========================
+    // GET AUTHENTICATED USER
+    // =========================
+
+    private User getAuthenticatedUser(
+            Authentication authentication
+    ) {
+
+        if (authentication == null ||
+                !authentication.isAuthenticated() ||
+                authentication.getName() == null) {
+
+            throw new AccessDeniedException(
+                    "Authentication is required"
+            );
+        }
+
+        return userRepository
+                .findByEmail(authentication.getName())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Authenticated user not found"
+                        )
+                );
+    }
+
+    // =========================
+    // ADMIN / LIBRARIAN CHECK
+    // =========================
+
+    private void checkAdminOrLibrarian(
+            User user
+    ) {
+
+        if (user.getRole() != Role.ADMIN
+                &&
+                user.getRole() != Role.LIBRARIAN) {
+
+            throw new AccessDeniedException(
+                    "Only administrators and librarians can access all transactions"
+            );
+        }
+    }
+
+    // =========================
+    // TRANSACTION ACCESS CHECK
+    // =========================
+
+    private void checkTransactionAccess(
+            Transaction transaction,
+            User authenticatedUser
+    ) {
+
+        // ADMIN can access everything
+        if (authenticatedUser.getRole()
+                == Role.ADMIN) {
+
+            return;
+        }
+
+        // LIBRARIAN can access everything
+        if (authenticatedUser.getRole()
+                == Role.LIBRARIAN) {
+
+            return;
+        }
+
+        // MEMBER can access only own transaction
+        if (authenticatedUser.getRole()
+                == Role.MEMBER) {
+
+            if (transaction.getUser() == null ||
+                    !authenticatedUser.getId()
+                            .equals(
+                                    transaction.getUser().getId()
+                            )) {
+
+                throw new AccessDeniedException(
+                        "You can only access your own transactions"
+                );
+            }
+
+            return;
+        }
+
+        throw new AccessDeniedException(
+                "You do not have permission to access this transaction"
+        );
     }
 }
