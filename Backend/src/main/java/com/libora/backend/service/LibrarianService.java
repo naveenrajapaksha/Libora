@@ -8,6 +8,7 @@ import com.libora.backend.entity.UserStatus;
 import com.libora.backend.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -33,9 +34,18 @@ public class LibrarianService {
             CreateLibrarianRequest request
     ) {
 
-        if (userRepository.existsByEmail(request.getEmail())) {
+        /*
+         * A deleted account does not block email reuse.
+         *
+         * ACTIVE / INACTIVE / PENDING / REJECTED
+         * accounts with the same email are not allowed.
+         */
+        if (userRepository.existsByEmailAndStatusNot(
+                request.getEmail(),
+                UserStatus.DELETED
+        )) {
             throw new IllegalArgumentException(
-                    "An account with this email already exists"
+                    "An active account with this email already exists"
             );
         }
 
@@ -46,6 +56,9 @@ public class LibrarianService {
                 Role.LIBRARIAN
         );
 
+        /*
+         * Librarians created by an Admin are immediately active.
+         */
         librarian.setStatus(UserStatus.ACTIVE);
 
         User savedLibrarian =
@@ -64,6 +77,9 @@ public class LibrarianService {
                 .stream()
                 .filter(user ->
                         user.getRole() == Role.LIBRARIAN
+                )
+                .filter(user ->
+                        user.getStatus() != UserStatus.DELETED
                 )
                 .map(this::toLibrarianResponse)
                 .toList();
@@ -87,6 +103,12 @@ public class LibrarianService {
         if (user.getRole() != Role.LIBRARIAN) {
             throw new IllegalArgumentException(
                     "User is not a librarian"
+            );
+        }
+
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new IllegalArgumentException(
+                    "Librarian account has been deleted"
             );
         }
 
@@ -147,12 +169,32 @@ public class LibrarianService {
     // DELETE LIBRARIAN
     // =========================
 
-    public void deleteLibrarian(Long id) {
+    @Transactional
+    public LibrarianResponse deleteLibrarian(Long id) {
 
         User librarian =
                 getLibrarianEntityById(id);
 
-        userRepository.delete(librarian);
+        if (librarian.getStatus()
+                == UserStatus.DELETED) {
+
+            throw new IllegalArgumentException(
+                    "Librarian account is already deleted"
+            );
+        }
+
+        /*
+         * Soft delete:
+         *
+         * We do NOT physically delete the database row.
+         * This preserves transaction/history records.
+         */
+        librarian.setStatus(UserStatus.DELETED);
+
+        User savedLibrarian =
+                userRepository.save(librarian);
+
+        return toLibrarianResponse(savedLibrarian);
     }
 
     // =========================
@@ -173,6 +215,12 @@ public class LibrarianService {
         if (user.getRole() != Role.LIBRARIAN) {
             throw new IllegalArgumentException(
                     "User is not a librarian"
+            );
+        }
+
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new IllegalArgumentException(
+                    "Librarian account has been deleted"
             );
         }
 

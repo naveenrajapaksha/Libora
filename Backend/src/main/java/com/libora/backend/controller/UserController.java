@@ -19,7 +19,10 @@ public class UserController {
         this.userService = userService;
     }
 
-    // Get all users
+    // =========================
+    // GET ALL USERS
+    // =========================
+
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
 
@@ -28,7 +31,10 @@ public class UserController {
         );
     }
 
-    // Get user by ID
+    // =========================
+    // GET USER BY ID
+    // =========================
+
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUserById(
             @PathVariable Long id
@@ -39,7 +45,10 @@ public class UserController {
         );
     }
 
-    // Approve pending user
+    // =========================
+    // APPROVE USER
+    // =========================
+
     @PutMapping("/{id}/approve")
     public ResponseEntity<UserResponse> approveUser(
             @PathVariable Long id
@@ -50,7 +59,10 @@ public class UserController {
         );
     }
 
-    // Reject pending user
+    // =========================
+    // REJECT USER
+    // =========================
+
     @PutMapping("/{id}/reject")
     public ResponseEntity<UserResponse> rejectUser(
             @PathVariable Long id
@@ -61,7 +73,10 @@ public class UserController {
         );
     }
 
-    // Deactivate active user
+    // =========================
+    // DEACTIVATE USER
+    // =========================
+
     @PutMapping("/{id}/deactivate")
     public ResponseEntity<UserResponse> deactivateUser(
             @PathVariable Long id
@@ -72,7 +87,10 @@ public class UserController {
         );
     }
 
-    // Activate inactive user
+    // =========================
+    // ACTIVATE USER
+    // =========================
+
     @PutMapping("/{id}/activate")
     public ResponseEntity<UserResponse> activateUser(
             @PathVariable Long id
@@ -80,6 +98,20 @@ public class UserController {
 
         return ResponseEntity.ok(
                 userService.activateUser(id)
+        );
+    }
+
+    // =========================
+    // DELETE MEMBER
+    // =========================
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<UserResponse> deleteMember(
+            @PathVariable Long id
+    ) {
+
+        return ResponseEntity.ok(
+                userService.deleteMember(id)
         );
     }
 }

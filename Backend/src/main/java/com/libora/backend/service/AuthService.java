@@ -27,11 +27,24 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
+    // =========================
+    // REGISTER MEMBER
+    // =========================
+
     public User registerMember(RegisterRequest request) {
 
-        if (userRepository.existsByEmail(request.getEmail())) {
+        /*
+         * Deleted accounts do not block email reuse.
+         *
+         * ACTIVE / INACTIVE / PENDING / REJECTED
+         * accounts with the same email are not allowed.
+         */
+        if (userRepository.existsByEmailAndStatusNot(
+                request.getEmail(),
+                UserStatus.DELETED
+        )) {
             throw new IllegalArgumentException(
-                    "An account with this email already exists"
+                    "An active account with this email already exists"
             );
         }
 
@@ -47,15 +60,33 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    // =========================
+    // LOGIN
+    // =========================
+
     public User login(LoginRequest request) {
 
+        /*
+         * Find the latest non-deleted account.
+         *
+         * This is important because the same email
+         * can exist in a DELETED old account and a
+         * newly registered account.
+         */
         User user = userRepository
-                .findByEmail(request.getEmail())
+                .findFirstByEmailAndStatusNotOrderByIdDesc(
+                        request.getEmail(),
+                        UserStatus.DELETED
+                )
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "Invalid email or password"
                         )
                 );
+
+        // =========================
+        // CHECK PASSWORD
+        // =========================
 
         if (!passwordEncoder.matches(
                 request.getPassword(),
@@ -66,30 +97,47 @@ public class AuthService {
             );
         }
 
+        // =========================
+        // CHECK ACCOUNT STATUS
+        // =========================
+
         if (user.getStatus() == UserStatus.PENDING) {
+
             throw new IllegalArgumentException(
                     "Your account is pending approval"
             );
         }
 
         if (user.getStatus() == UserStatus.REJECTED) {
+
             throw new IllegalArgumentException(
                     "Your account has been rejected"
             );
         }
 
         if (user.getStatus() == UserStatus.INACTIVE) {
+
             throw new IllegalArgumentException(
                     "Your account is inactive"
             );
         }
 
+        /*
+         * DELETED accounts are excluded by the repository
+         * query above, so they cannot reach this point.
+         */
+
         return user;
     }
+
+    // =========================
+    // GENERATE JWT TOKEN
+    // =========================
 
     public String generateToken(User user) {
 
         return jwtService.generateToken(
+                user.getId(),
                 user.getEmail(),
                 user.getRole().name()
         );

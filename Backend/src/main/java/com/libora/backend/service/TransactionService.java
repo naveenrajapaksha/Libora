@@ -110,7 +110,7 @@ public class TransactionService {
         if (user.getStatus() == null ||
                 !"ACTIVE".equals(user.getStatus().name())) {
 
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "Only active users can borrow books"
             );
         }
@@ -122,7 +122,7 @@ public class TransactionService {
         if (book.getAvailableQuantity() == null ||
                 book.getAvailableQuantity() <= 0) {
 
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "Book is currently unavailable"
             );
         }
@@ -155,7 +155,7 @@ public class TransactionService {
                         );
 
         if (alreadyBorrowed) {
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "You have already borrowed this book"
             );
         }
@@ -261,7 +261,7 @@ public class TransactionService {
         if (transaction.getStatus()
                 == TransactionStatus.RETURNED) {
 
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "This book has already been returned"
             );
         }

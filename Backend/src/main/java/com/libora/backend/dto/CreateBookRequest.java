@@ -22,6 +22,10 @@ public class CreateBookRequest {
     @Min(value = 1, message = "Quantity must be at least 1")
     private Integer quantity;
 
+    @NotNull(message = "Available quantity is required")
+    @Min(value = 0, message = "Available quantity cannot be negative")
+    private Integer availableQuantity;
+
     public CreateBookRequest() {
     }
 
@@ -63,5 +67,13 @@ public class CreateBookRequest {
 
     public void setQuantity(Integer quantity) {
         this.quantity = quantity;
+    }
+
+    public Integer getAvailableQuantity() {
+        return availableQuantity;
+    }
+
+    public void setAvailableQuantity(Integer availableQuantity) {
+        this.availableQuantity = availableQuantity;
     }
 }

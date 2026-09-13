@@ -3,6 +3,7 @@ package com.libora.backend.service;
 import com.libora.backend.dto.BookResponse;
 import com.libora.backend.dto.CreateBookRequest;
 import com.libora.backend.entity.Book;
+import com.libora.backend.exception.ResourceNotFoundException;
 import com.libora.backend.repository.BookRepository;
 import org.springframework.stereotype.Service;
 
@@ -20,9 +21,23 @@ public class BookService {
     // Create Book
     public BookResponse createBook(CreateBookRequest request) {
 
+        // Check duplicate ISBN
         if (bookRepository.existsByIsbn(request.getIsbn())) {
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "A book with this ISBN already exists"
+            );
+        }
+
+        // Validate available quantity
+        if (request.getAvailableQuantity() < 0) {
+            throw new IllegalArgumentException(
+                    "Available quantity cannot be negative"
+            );
+        }
+
+        if (request.getAvailableQuantity() > request.getQuantity()) {
+            throw new IllegalArgumentException(
+                    "Available quantity cannot be greater than total quantity"
             );
         }
 
@@ -32,7 +47,7 @@ public class BookService {
                 request.getIsbn(),
                 request.getCategory(),
                 request.getQuantity(),
-                request.getQuantity()
+                request.getAvailableQuantity()
         );
 
         return new BookResponse(
@@ -54,7 +69,7 @@ public class BookService {
 
         Book book = bookRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Book not found with id: " + id
                         )
                 );
@@ -70,7 +85,7 @@ public class BookService {
 
         Book existingBook = bookRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Book not found with id: " + id
                         )
                 );
@@ -79,17 +94,33 @@ public class BookService {
         if (!existingBook.getIsbn().equals(request.getIsbn())
                 && bookRepository.existsByIsbn(request.getIsbn())) {
 
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "A book with this ISBN already exists"
             );
         }
 
+        // Validate available quantity
+        if (request.getAvailableQuantity() < 0) {
+            throw new IllegalArgumentException(
+                    "Available quantity cannot be negative"
+            );
+        }
+
+        if (request.getAvailableQuantity() > request.getQuantity()) {
+            throw new IllegalArgumentException(
+                    "Available quantity cannot be greater than total quantity"
+            );
+        }
+
+        // Calculate currently issued copies
         int issuedCopies =
                 existingBook.getQuantity()
                         - existingBook.getAvailableQuantity();
 
+        // New total quantity cannot be less than
+        // the number of currently issued copies
         if (request.getQuantity() < issuedCopies) {
-            throw new RuntimeException(
+            throw new IllegalArgumentException(
                     "Quantity cannot be less than currently issued copies"
             );
         }
@@ -100,6 +131,17 @@ public class BookService {
         existingBook.setCategory(request.getCategory());
         existingBook.setQuantity(request.getQuantity());
 
+        /*
+         * Preserve currently issued copies.
+         *
+         * Example:
+         * Existing quantity = 10
+         * Existing available = 7
+         * Issued copies = 3
+         *
+         * New quantity = 15
+         * New available = 15 - 3 = 12
+         */
         existingBook.setAvailableQuantity(
                 request.getQuantity() - issuedCopies
         );
@@ -114,7 +156,7 @@ public class BookService {
 
         Book book = bookRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Book not found with id: " + id
                         )
                 );

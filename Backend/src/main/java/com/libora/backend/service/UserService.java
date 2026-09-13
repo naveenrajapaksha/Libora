@@ -1,10 +1,13 @@
 package com.libora.backend.service;
 
 import com.libora.backend.dto.UserResponse;
+import com.libora.backend.entity.Role;
 import com.libora.backend.entity.User;
 import com.libora.backend.entity.UserStatus;
+import com.libora.backend.exception.ResourceNotFoundException;
 import com.libora.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,7 +20,10 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    // Get all users
+    // =========================
+    // GET ALL USERS
+    // =========================
+
     public List<UserResponse> getAllUsers() {
 
         return userRepository.findAll()
@@ -26,20 +32,21 @@ public class UserService {
                 .toList();
     }
 
-    // Get user by ID
+    // =========================
+    // GET USER BY ID
+    // =========================
+
     public UserResponse getUserById(Long id) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "User not found with id: " + id
-                        )
-                );
+        User user = getUserEntityById(id);
 
         return toUserResponse(user);
     }
 
-    // Approve pending user
+    // =========================
+    // APPROVE USER
+    // =========================
+
     public UserResponse approveUser(Long id) {
 
         User user = getUserEntityById(id);
@@ -57,7 +64,10 @@ public class UserService {
         );
     }
 
-    // Reject pending user
+    // =========================
+    // REJECT USER
+    // =========================
+
     public UserResponse rejectUser(Long id) {
 
         User user = getUserEntityById(id);
@@ -75,7 +85,10 @@ public class UserService {
         );
     }
 
-    // Deactivate active user
+    // =========================
+    // DEACTIVATE USER
+    // =========================
+
     public UserResponse deactivateUser(Long id) {
 
         User user = getUserEntityById(id);
@@ -93,7 +106,10 @@ public class UserService {
         );
     }
 
-    // Activate inactive user
+    // =========================
+    // ACTIVATE USER
+    // =========================
+
     public UserResponse activateUser(Long id) {
 
         User user = getUserEntityById(id);
@@ -111,18 +127,67 @@ public class UserService {
         );
     }
 
-    // Find user entity by ID
+    // =========================
+    // DELETE MEMBER
+    // =========================
+
+    @Transactional
+    public UserResponse deleteMember(Long id) {
+
+        User member = getUserEntityById(id);
+
+        // Make sure the selected account is a MEMBER
+        if (member.getRole() != Role.MEMBER) {
+            throw new IllegalArgumentException(
+                    "Only member accounts can be deleted from this endpoint"
+            );
+        }
+
+        // Prevent deleting an already deleted account
+        if (member.getStatus() == UserStatus.DELETED) {
+            throw new IllegalArgumentException(
+                    "Member account is already deleted"
+            );
+        }
+
+        /*
+         * SOFT DELETE
+         *
+         * We do NOT remove the database record.
+         * Only the account status is changed to DELETED.
+         *
+         * Therefore:
+         * - Borrow history is preserved
+         * - Return history is preserved
+         * - Penalty history is preserved
+         * - Notification history is preserved
+         */
+        member.setStatus(UserStatus.DELETED);
+
+        User savedMember =
+                userRepository.save(member);
+
+        return toUserResponse(savedMember);
+    }
+
+    // =========================
+    // FIND USER ENTITY
+    // =========================
+
     private User getUserEntityById(Long id) {
 
         return userRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "User not found with id: " + id
                         )
                 );
     }
 
-    // Convert User Entity to UserResponse DTO
+    // =========================
+    // CONVERT ENTITY → DTO
+    // =========================
+
     private UserResponse toUserResponse(User user) {
 
         return new UserResponse(

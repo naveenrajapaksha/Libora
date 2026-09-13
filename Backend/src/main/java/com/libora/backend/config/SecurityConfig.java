@@ -104,6 +104,17 @@ public class SecurityConfig {
 
 
                         // =========================
+                        // MEMBER DELETE
+                        // ADMIN ONLY
+                        // =========================
+
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/users/**"
+                        ).hasRole("ADMIN")
+
+
+                        // =========================
                         // USER / MEMBER MANAGEMENT
                         // ADMIN + LIBRARIAN
                         // =========================
@@ -178,9 +189,6 @@ public class SecurityConfig {
                         // =========================
                         // TRANSACTIONS
                         // =========================
-
-                        // All transaction endpoints
-                        // require authentication
 
                         .requestMatchers(
                                 "/api/transactions/**"

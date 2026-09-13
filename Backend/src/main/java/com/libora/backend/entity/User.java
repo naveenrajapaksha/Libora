@@ -13,7 +13,7 @@ public class User {
     @Column(nullable = false)
     private String fullName;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
@@ -32,7 +32,12 @@ public class User {
     }
 
     // Constructor
-    public User(String fullName, String email, String password, Role role) {
+    public User(
+            String fullName,
+            String email,
+            String password,
+            Role role
+    ) {
         this.fullName = fullName;
         this.email = email;
         this.password = password;

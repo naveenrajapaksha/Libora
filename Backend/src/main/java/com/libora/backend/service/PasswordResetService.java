@@ -16,18 +16,25 @@ public class PasswordResetService {
     private final UserRepository userRepository;
     private final PasswordResetOtpRepository otpRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
     public PasswordResetService(
             UserRepository userRepository,
             PasswordResetOtpRepository otpRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            EmailService emailService
     ) {
         this.userRepository = userRepository;
         this.otpRepository = otpRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
+
+    // =========================
+    // GENERATE OTP
+    // =========================
 
     public String generateOtp(String email) {
 
@@ -54,17 +61,34 @@ public class PasswordResetService {
 
         otpRepository.save(passwordResetOtp);
 
-        // Development purpose only.
-        // Later we will send this OTP through email.
-        System.out.println(
-                "PASSWORD RESET OTP for "
-                        + email
-                        + " = "
-                        + otp
+        // =========================
+        // SEND OTP EMAIL
+        // =========================
+
+        String subject = "Libora - Password Reset OTP";
+
+        String message =
+                "Hello " + user.getFullName() + ",\n\n"
+                        + "We received a request to reset your Libora account password.\n\n"
+                        + "Your One-Time Password (OTP) is:\n\n"
+                        + otp + "\n\n"
+                        + "This OTP is valid for 5 minutes.\n\n"
+                        + "If you did not request a password reset, please ignore this email.\n\n"
+                        + "Regards,\n"
+                        + "Libora Library Management System";
+
+        emailService.sendEmail(
+                email,
+                subject,
+                message
         );
 
         return "OTP generated successfully.";
     }
+
+    // =========================
+    // VERIFY OTP
+    // =========================
 
     public String verifyOtp(
             String email,
@@ -78,11 +102,17 @@ public class PasswordResetService {
                         );
 
         if (resetOtp.isUsed()) {
-            throw new RuntimeException("OTP has already been used");
+            throw new RuntimeException(
+                    "OTP has already been used"
+            );
         }
 
-        if (LocalDateTime.now().isAfter(resetOtp.getExpiresAt())) {
-            throw new RuntimeException("OTP has expired");
+        if (LocalDateTime.now().isAfter(
+                resetOtp.getExpiresAt()
+        )) {
+            throw new RuntimeException(
+                    "OTP has expired"
+            );
         }
 
         if (resetOtp.getAttempts() >= 5) {
@@ -102,14 +132,21 @@ public class PasswordResetService {
 
             otpRepository.save(resetOtp);
 
-            throw new RuntimeException("Invalid OTP");
+            throw new RuntimeException(
+                    "Invalid OTP"
+            );
         }
 
         resetOtp.setUsed(true);
+
         otpRepository.save(resetOtp);
 
         return "OTP verified successfully.";
     }
+
+    // =========================
+    // RESET PASSWORD
+    // =========================
 
     public String resetPassword(
             String email,
